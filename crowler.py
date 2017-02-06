@@ -12,7 +12,7 @@ import os
 ROOT = 'http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/'
 XML = '''<xml><front><head><title>Словарь древнерусского языка (XI-XIV вв.)
 </title><author>Перечислены авторы</author></head><dict_lang>rus</dict_lang>
-</front></xml>'''
+</front><body></body><back></back></xml>'''
 
 
 def root_walker():
@@ -23,13 +23,12 @@ def root_walker():
         root_page = request.urlopen(page).read().decode('utf-8')
         links = html.fromstring(root_page).xpath('.//div[@class="list"]')
         links = [ROOT + o[0].get('href').split('/', 2)[2] for o in links]
-        # os.system('echo {0} >> links'.format(' '.join(links)))
         all_links += links
     return all_links
 
 
 def get_dictionary():
-    di = etree.fromstring(di)
+    di = etree.fromstring(XML)
     with open('links', 'r') as f:
         links = f.read().split('\n')
     for link in links:
@@ -37,9 +36,10 @@ def get_dictionary():
     return di
 
 
-
 def get_page_data(link):
-    pass
+    page = request.urlopen(link).read().decode('utf-8')
+    # div class="page"
+
 
 def main():
     # links = root_walker()
