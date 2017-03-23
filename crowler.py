@@ -2,6 +2,8 @@
 this is a crawler for http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv
 '''
 
+# суперэнтри -- это обязательная составляющая?
+
 from urllib import parse
 from urllib import request
 from lxml import etree
@@ -10,9 +12,13 @@ import os
 
 
 ROOT = 'http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/'
-XML = '''<xml><front><head><title>Словарь древнерусского языка (XI-XIV вв.)
-</title><author>Перечислены авторы</author></head><dict_lang>rus</dict_lang>
-</front><body></body><back></back></xml>'''
+with open('template.xml') as f:
+    XML = f.read()
+ENTRY = '''<div><superEntry><metalemma></metalemma><entry 
+n='PLACEHOLDER_0' type='hom'><form></form><gramGrp></gramGrp>
+<form type="inflected"></form><sense n='PLACEHOLDER_1'></sense>
+<re> <!-- дериваты --></re><etym><!-- блок этимологии --></etym>
+</entry></superEntry></div>'''
 
 
 def root_walker():
@@ -31,14 +37,23 @@ def get_dictionary():
     di = etree.fromstring(XML)
     with open('links', 'r') as f:
         links = f.read().split('\n')
-    for link in links:
+    for i in range(len(links)):
         entry = get_page_data(link)
+        di[1][i] = entry
     return di
 
 
 def get_page_data(link):
-    page = request.urlopen(link).read().decode('utf-8')
-    # div class="page"
+    # page = request.urlopen(link).read().decode('utf-8')
+
+    with open('mock_page.html') as f:
+        page = f.read()
+
+    entry = etree.fromstring('<div></div>')
+    entries = html.fromstring(page).xpath('.//div[@class="page"]')
+    print([en.text for en in entries[0].getchildren()[0].getchildren()])
+    print([en.tag for en in entries[0].getchildren()[0].getchildren()])
+    return entry
 
 
 def main():
@@ -49,5 +64,6 @@ def main():
 
 
 
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()
+get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/otyvty.8661/')

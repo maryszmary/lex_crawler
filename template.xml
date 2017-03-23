@@ -13,8 +13,8 @@
     <head>
         <title>Словарь древнерусского языка (XI-XIV вв.)</title>
         <author>Перечислены авторы</author>
+	    <language>rus</language>
     </head>
-    <dict_lang>rus</dict_lang>
 </front>
 <body></body>
 <back></back>
