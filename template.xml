@@ -1,0 +1,21 @@
+<xml>
+<fileDesc>      
+    <respStmt>  
+        <name></name>
+    </respStmt> 
+    <extent></extent>   
+    <sourceDesc>    
+        <ref target="ссылка на источник в интернете">http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/</ref>
+        <p>This database was converted from "Словарь древнерусского языка (XI-XIV вв.)" by Masha Sheyanova.</p>
+    </sourceDesc>   
+</fileDesc>     
+<front>
+    <head>
+        <title>Словарь древнерусского языка (XI-XIV вв.)</title>
+        <author>Перечислены авторы</author>
+    </head>
+    <dict_lang>rus</dict_lang>
+</front>
+<body></body>
+<back></back>
+</xml>
