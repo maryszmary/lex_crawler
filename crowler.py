@@ -2,7 +2,8 @@
 this is a crawler for http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv
 '''
 
-# суперэнтри -- это обязательная составляющая?
+# проблемы:
+# значение то внизу, то в шапке
 
 from urllib import parse
 from urllib import request
@@ -51,8 +52,8 @@ def get_page_data(link):
 
     entry = etree.fromstring('<superEntry></superEntry>')
     content = html.fromstring(page).xpath('.//div[@class="page"]')[0]
+    meanings = get_meanings(content)
     gram = get_gram_info(content[0][0])
-    # meanings = get_meanings(content[1:])
     # building the entry
     return entry
 
@@ -61,13 +62,15 @@ def get_gram_info(head):
     print([tag.tag for tag in head])
     lemma = head[0].text
     pos = head.xpath('em')[-1].text.strip('. ')
+    xr = ''
     if pos.split(' ')[-1] == 'к':
-        xr = head.xpath('strong')[-1].text.strip('. ')
         pos = ' '.join(pos.split(' ')[:-1])
+        xr = head.xpath('strong')[-1].text.strip('. ')
+        xr = '<xr>' + xr + '</xr>'
         print('XR DETECTED: ' + xr)
         # print(etree.tostring(head, encoding='utf-8').decode())
+    pos_xml = '<pos>' + pos + '</pos>' + xr
     lemma_xml = '<orth type="lemma" extent="full" >' + lemma + '</orth>'
-    pos_xml = '<pos>' + pos + '</pos>'
     occ = '<usg type="plev">' +  head[0].tail.strip(' (), -') + '</usg>'
     infl = infl_constructor(head, pos, lemma)
     gram = etree.fromstring(FORM.format(lemma_xml + occ, pos_xml, infl))
@@ -96,7 +99,8 @@ def infl_constructor(head, pos, lemma):
 
 
 def get_meanings(content):
-    return meanings
+    print(content[1].text) # supposedly, if it starts with 1, the word is polysemic
+    return ''
 
 
 def main():
@@ -112,5 +116,6 @@ def main():
 get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/otyvty.8661/')
 get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/otymetati.8802/')
 get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/otylpiti.8799/')
-get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/more.3677/')
+get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/more.3677/') 
 get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/biny.592/')
+get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/bezbojno.128/') 
