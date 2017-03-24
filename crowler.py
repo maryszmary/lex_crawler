@@ -4,6 +4,7 @@ this is a crawler for http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv
 
 # проблемы:
 # значение то внизу, то в шапке
+# непонятно, как вытаскивать def из штук типа "причастие к бити"
 
 from urllib import parse
 from urllib import request
@@ -36,23 +37,26 @@ def root_walker():
 
 def get_dictionary():
     di = etree.fromstring(XML)
-    with open('links', 'r') as f:
-        links = f.read().split('\n')
-    for i in range(len(links)):
-        entry = get_page_data(link)
-        di[1][i] = entry
+    # with open('links', 'r') as f:
+    #     links = f.read().split('\n')
+
+    articles = os.listdir('mock_articles')
+
+    for i in range(len(articles)):
+        entry = get_page_data(articles[i])
+        di.append(entry)
     return di
 
 
-def get_page_data(link):
-    page = request.urlopen(link).read().decode('utf-8')
+def get_page_data(fname):
+    # page = request.urlopen(link).read().decode('utf-8')
 
-    # with open('mock_page.html') as f:
-    #     page = f.read()
+    with open('mock_articles/' + fname) as f:
+        page = f.read()
 
     entry = etree.fromstring('<superEntry></superEntry>')
     content = html.fromstring(page).xpath('.//div[@class="page"]')[0]
-    meanings = get_meanings(content)
+    meanings = get_meanings(content[0])
     gram = get_gram_info(content[0][0])
     # building the entry
     return entry
@@ -73,9 +77,11 @@ def get_gram_info(head):
     lemma_xml = '<orth type="lemma" extent="full" >' + lemma + '</orth>'
     occ = '<usg type="plev">' +  head[0].tail.strip(' (), -') + '</usg>'
     infl = infl_constructor(head, pos, lemma)
-    gram = etree.fromstring(FORM.format(lemma_xml + occ, pos_xml, infl))
-    print(etree.tostring(gram, encoding='utf-8').decode())
-    return gram
+    form = etree.fromstring(FORM.format(lemma_xml + occ, pos_xml, infl))
+    if pos in ['гл', 'с']:
+        pass # form type="inflected"  TODO
+    print('form: ' + etree.tostring(form, encoding='utf-8').decode())
+    return form
 
 
 def infl_constructor(head, pos, lemma):
@@ -94,13 +100,35 @@ def infl_constructor(head, pos, lemma):
     elif pos == 'с':
         infl = '<case><gen>' + gram + '</gen></case>' 
         etree.fromstring(infl)
-    print('gram: ' + flex + infl)
     return flex + infl
 
 
 def get_meanings(content):
-    print(content[1].text) # supposedly, if it starts with 1, the word is polysemic
+    # supposedly, if it starts with 1, the word is polysemic
+    if content[1].text is not None:
+        senses = content.xpath('div')
+    # let's assume that these words are not polysemic
+    # elif content[1].text == None:
+    else:
+        sense = etree.fromstring('<sense n="1"></sense>')
+        defin = content[0].xpath('em')[-1].text
+        defin = etree.fromstring('<def>' + defin + '</def>')
+        sense.append(defin)
+        sense = append_cits(sense, content)
     return ''
+
+
+def append_cits(sense, content):
+    cits = content.xpath('.//span[@class="dic_example"]')[0]
+    examples = cits.xpath('.//span[@style="color: steelblue;"]')
+    sources = cits.xpath('.//em/span')
+    print('len of cits: ' + str(len(examples)))
+    print('len of sources: ' + str(len(sources)))
+    for pair in zip(examples, sources):
+        cit = '<cit><text>{0}</text><src>{1}</src></cit>'.format(pair[0].text, pair[1].text)
+        cit = etree.fromstring(cit)
+        sense.append(cit)
+    return sense
 
 
 def main():
@@ -108,14 +136,16 @@ def main():
     # with open('links', 'w') as f:
     #     f.write('\n'.join(links))
     xml = get_dictionary()
+    with open('old_church_slavonic.tei', 'w') as f:
+        text = etree.tostring(xml, encoding='utf-8').decode()
+        f.write(text)
 
 
 
-# if __name__ == '__main__':
-#     main()
-get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/otyvty.8661/')
-get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/otymetati.8802/')
-get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/otylpiti.8799/')
-get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/more.3677/') 
-get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/biny.592/')
-get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/bezbojno.128/') 
+if __name__ == '__main__':
+    main()
+# get_page_data('otyvty.8661.html')
+# get_page_data('otymetati.8802.html')
+# get_page_data('biny.592.html')
+# get_page_data('bezbojno.128.html') 
+# get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/more.3677/') 
