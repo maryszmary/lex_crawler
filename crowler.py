@@ -56,17 +56,29 @@ def get_page_data(fname):
 
     entry = etree.fromstring(ENTRY)
     content = html.fromstring(page).xpath('.//div[@class="page"]')[0]
-    meanings = get_meanings(content[0])
-    gram = get_gram_info(content[0][0])
+
+    # there are some articles without examples o_O
+    try:
+        meanings = get_meanings(content[0])
+    except IndexError:
+        print('no examples: ' + fname)
+        meanings = []
+    except etree.XMLSyntaxError:
+        print('etree.XMLSyntaxError: ' + fname)
+    
+    lemma = content[0][0][0].text
+    try:
+        gram = get_gram_info(content[0][0], lemma)
+    except:
+        gram = etree.fromstring('<form><orth type="lemma" extent="full" >{0}</orth></form>'.format(lemma))
     # building the entry
-    entry[0].append(gram)
-    entry[0][1:] = meanings
+    entry[1].append(gram)
+    entry[1][1:] = meanings
     return entry
 
 
-def get_gram_info(head):
-    print([tag.tag for tag in head])
-    lemma = head[0].text
+def get_gram_info(head, lemma):
+    # lemma = head[0].text
     pos = head.xpath('em')[-1].text.strip('. ')
     xr = ''
     if pos.split(' ')[-1] == 'к':
@@ -125,8 +137,6 @@ def get_meanings(content):
             result.append(sense)
         return result
 
-
-    # elif content[1].text == None:
     # let's assume that these words are not polysemic
     else:
         sense = etree.fromstring('<sense n="1"></sense>')
@@ -142,8 +152,8 @@ def append_cits(sense, content):
     cits = content.xpath('.//span[@class="dic_example"]')[0]
     examples = cits.xpath('.//span[@style="color: steelblue;"]')
     sources = cits.xpath('.//em/span')
-    print('len of cits: ' + str(len(examples)))
-    print('len of sources: ' + str(len(sources)))
+    # print('len of cits: ' + str(len(examples)))
+    # print('len of sources: ' + str(len(sources)))
     for pair in zip(examples, sources):
         cit = '<cit><text>{0}</text><src>{1}</src></cit>'.format(pair[0].text, pair[1].text)
         cit = etree.fromstring(cit)
