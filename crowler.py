@@ -18,9 +18,9 @@ ROOT = 'http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/'
 with open('template.xml') as f:
     XML = f.read()
 ENTRY = '<superEntry><metalemma></metalemma><entry></entry></superEntry>'
-FORM = '<form>{0}<gramGrp>{1}</gramGrp></form>'
-INFL_FORM = '<form>{0}<gramGrp>{1}</gramGrp><inflection>{2}</inflection></form>'
-NUM = ['1. ', '2. ', '3. ', '4. ', '5. ', '6. ', '7. ']
+FORM = '<form>{0}<gramGrp>{1}</gramGrp>{2}</form>'
+INFL_FORM = '<form type="inflected">{0}<gramGrp>{1}</gramGrp></form>'
+NUM = ['1. ', '2. ', '3. ', '4. ', '5. ', '6. ', '7. ', '8. ', '9. ']
 
 
 def root_walker():
@@ -36,10 +36,8 @@ def root_walker():
 
 
 def get_dictionary():
+    '''the main func for extracting the dictionaary data'''
     di = etree.fromstring(XML)
-    # with open('links', 'r') as f:
-    #     links = f.read().split('\n')
-
     articles = os.listdir('mock_articles')
 
     for i in range(len(articles)):
@@ -49,76 +47,96 @@ def get_dictionary():
 
 
 def get_page_data(fname):
-    # page = request.urlopen(link).read().decode('utf-8')
-
+    '''responsible for extration of all the information from a page'''
     with open('mock_articles/' + fname) as f:
         page = f.read()
-
-    entry = etree.fromstring(ENTRY)
     content = html.fromstring(page).xpath('.//div[@class="page"]')[0]
+    lemma = content[0][0][0].text
 
     # there are some articles without examples o_O
     try:
-        meanings = get_meanings(content[0])
-    except IndexError:
+        meaning, polysemic = get_meaning(content[0])
+    except IndexError: # DEBUG
         print('no examples: ' + fname)
-        meanings = []
+        polysemic = False
+        meaning = []
     except etree.XMLSyntaxError:
         print('etree.XMLSyntaxError: ' + fname)
     
-    lemma = content[0][0][0].text
-    try:
-        gram = get_gram_info(content[0][0], lemma)
-    except:
-        gram = etree.fromstring('<form><orth type="lemma" extent="full" >{0}</orth></form>'.format(lemma))
+
+    # DEBUG
+    gram = get_gram_info(content[0][0], lemma, fname)
+    # except Exception as e:
+    #     print(str(e) + ': ' + fname)
+    #     raise e
+
     # building the entry
+    entry = etree.fromstring(ENTRY)
     entry[1].append(gram)
-    entry[1][1:] = meanings
+    entry[1][1:] = meaning
     return entry
 
 
-def get_gram_info(head, lemma):
-    # lemma = head[0].text
-    pos = head.xpath('em')[-1].text.strip('. ')
+def get_gram_info(head, lemma, fname):
+    try:
+        pos = head.xpath('em')[-1].text.strip('. ')
+    except IndexError:
+        print('IndexError: ' + fname)
+        # gram = etree.fromstring('<form><orth type="lemma" extent="full" >{0}</orth></form>'.format(lemma))
     xr = ''
     if pos.split(' ')[-1] == 'к':
         pos = ' '.join(pos.split(' ')[:-1])
         xr = head.xpath('strong')[-1].text.strip('. ')
         xr = '<xr>' + xr + '</xr>'
         # print('XR DETECTED: ' + xr)
-        # print(etree.tostring(head, encoding='utf-8').decode())
     pos_xml = '<pos>' + pos + '</pos>' + xr
     lemma_xml = '<orth type="lemma" extent="full" >' + lemma + '</orth>'
-    occ = '<usg type="plev">' +  head[0].tail.strip(' (), -') + '</usg>'
+    occ = get_freq(head)
+
     infl = infl_constructor(head, pos, lemma)
     if pos in ['гл', 'с']:
         form = etree.fromstring(INFL_FORM.format(lemma_xml + occ, pos_xml, infl))
     else:
-        form = etree.fromstring(FORM.format(lemma_xml + occ, pos_xml))
+        form = etree.fromstring(INFL_FORM.format(lemma_xml + occ, pos_xml))
     print('form: ' + etree.tostring(form, encoding='utf-8').decode())
     return form
 
 
+def get_freq(head):
+    '''getting the number of occurencies'''
+    pssbl_occ = head[0].tail
+    if pssbl_occ is not None:
+        occ = '<usg type="plev">' + head[0].tail.strip(' (), -') + '</usg>'
+    else:
+        # this is made, because in some articles the location of freq is not typical
+        occ = '<usg type="plev">' + head[1][0].text + '</usg>'
+        print('untypical location of OCC: ' + occ)
+    return occ
+
+
 def infl_constructor(head, pos, lemma):
-    flex = ''
-    if '|' in lemma:
-        flex = '<orth  extent="part">' + lemma.split('|')[-1] + '</orth>'
+    infl = []
     gram = etree.Element('root')
     gram[:] = head[1:-1]
     gram = etree.tostring(gram, encoding='utf-8').decode()
     gram = BeautifulSoup(gram, 'html.parser').get_text()
-    infl = ''
     if pos == 'гл':
+        if '|' in lemma:
+            infl = ['<orth  extent="part">' + lemma.split('|')[-1] + '</orth>']
+            # flex = '<inflection>' + flex + '</inflection>'
         morph = gram.split(', ')
-        infl = '<pers><sg1>' + morph[0] + '</sg1><sg3>'\
-               + morph[1] + '</sg3></pers>'
+        infl += ['<per><sg1>' + morph[0] + '</sg1></per>', '<per><sg3>'\
+                 + morph[1] + '</sg3></per>']
+        infl = ['<inflection>' + f + '</inflection>' for f in infl]
     elif pos == 'с':
-        infl = '<case><gen>' + gram + '</gen></case>' 
-        etree.fromstring(infl)
-    return flex + infl
+        if '|' in lemma:
+            infl = ['<case><orth  extent="part">' + lemma.split('|')[-1] + '</orth>']
+        infl += ['<case><gen>' + gram + '</gen></case>'] 
+        infl = ['<inflection>' + f + '</inflection>' for f in infl]
+    return ''.join(infl)
 
 
-def get_meanings(content):
+def get_meaning(content):
     # supposedly, if it doesn't start with None, the word is polysemic
     if content[1].text is not None:
         senses = content.xpath('div')
@@ -127,15 +145,15 @@ def get_meanings(content):
         result = []
         for i in range(len(senses)):
             sense = etree.fromstring('<sense n="{0}"></sense>'.format(str(i)))
-            defin = senses[i][0][0].text
             lbl = senses[i][0].text
-            print(lbl)
-            print(defin)
-            defin = etree.fromstring('<def>' + defin + '</def>')
             lbl = etree.fromstring('<lbl>' + lbl + '</lbl>')
+            defin = senses[i][0][0].text
+            defin = etree.fromstring('<def>' + defin + '</def>')
+            sense.append(lbl)
+            sense.append(defin)
             sense = append_cits(sense, senses[i][1])
             result.append(sense)
-        return result
+        return result, True
 
     # let's assume that these words are not polysemic
     else:
@@ -144,8 +162,7 @@ def get_meanings(content):
         defin = etree.fromstring('<def>' + defin + '</def>')
         sense.append(defin)
         sense = append_cits(sense, content)
-        return [sense]
-    return []
+        return [sense], False
 
 
 def append_cits(sense, content):
@@ -166,9 +183,12 @@ def main():
     # with open('links', 'w') as f:
     #     f.write('\n'.join(links))
     xml = get_dictionary()
-    with open('old_church_slavonic.tei', 'w') as f:
-        text = etree.tostring(xml, encoding='utf-8').decode()
-        f.write(text)
+    f = open('old_russian.tei', 'w')
+    # with open('old_russian.tei', 'w') as f:
+    text = etree.tostring(xml, encoding='utf-8').decode()
+    print(text)
+    f.write(text)
+    f.close()
 
 
 
@@ -178,4 +198,3 @@ if __name__ == '__main__':
 # get_page_data('otymetati.8802.html')
 # get_page_data('biny.592.html')
 # get_page_data('bezbojno.128.html') 
-# get_page_data('http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/page/more.3677/') 
