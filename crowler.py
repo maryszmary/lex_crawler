@@ -42,7 +42,7 @@ def get_dictionary():
 
     for i in range(len(articles)):
         entry = get_page_data(articles[i])
-        di.append(entry)
+        di[-1][0].append(entry)
     return di
 
 
@@ -54,14 +54,14 @@ def get_page_data(fname):
     lemma = content[0][0][0].text
 
     # there are some articles without examples o_O
-    try:
-        meaning, polysemic = get_meaning(content[0])
-    except IndexError: # DEBUG
-        print('no examples: ' + fname)
-        polysemic = False
-        meaning = []
-    except etree.XMLSyntaxError:
-        print('etree.XMLSyntaxError: ' + fname)
+    # try:
+    meaning, polysemic = get_meaning(content[0])
+    # except IndexError: # DEBUG
+    #     print('no examples: ' + fname)
+    #     polysemic = False
+    #     meaning = []
+    # except etree.XMLSyntaxError:
+    #     print('etree.XMLSyntaxError: ' + fname)
     
 
     # DEBUG
@@ -183,13 +183,9 @@ def main():
     # with open('links', 'w') as f:
     #     f.write('\n'.join(links))
     xml = get_dictionary()
-    f = open('old_russian.tei', 'w')
-    # with open('old_russian.tei', 'w') as f:
-    text = etree.tostring(xml, encoding='utf-8').decode()
-    print(text)
-    f.write(text)
-    f.close()
-
+    with open('old_russian.tei', 'w') as f:
+        text = etree.tostring(xml, encoding='utf-8').decode()
+        f.write(text)
 
 
 if __name__ == '__main__':
