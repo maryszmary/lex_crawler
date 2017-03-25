@@ -17,13 +17,17 @@ import os
 ROOT = 'http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/'
 with open('template.xml') as f:
     XML = f.read()
-ENTRY = '<superEntry><metalemma></metalemma><entry></entry></superEntry>'
+ENTRY = '''<superEntry>
+    <metalemma></metalemma>
+    <entry>
+    </entry>
+</superEntry>'''
 NUM = ['1. ', '2. ', '3. ', '4. ', '5. ', '6. ', '7. ', '8. ', '9. ']
 FORM = '<form type="inflected">{0}<gramGrp>{1}</gramGrp></form>'
 INFL_FORM = '<form>{0}<gramGrp>{1}</gramGrp>{2}</form>'
-NOUN = '<inflection><orth{0}>{1}</orth><case>{2}<case><num>sg</num></inflection>'
+NOUN = '<inflection><orth{0}>{1}</orth><case>{2}</case><num>sg</num></inflection>'
 VERB = '<inflection><orth>{0}</orth><per>{1}</per></inflection>'
-INFI = '<inflection><orth extent="part">{0}</orth><lbl>inf<lbl></inflection>'
+INFI = '<inflection><orth extent="part">{0}</orth><lbl>inf</lbl></inflection>'
 
 
 def root_walker():
@@ -96,8 +100,8 @@ def get_gram_info(head, lemma, fname):
     lemma_xml = '<orth type="lemma" extent="full" >' + lemma + '</orth>'
     occ = get_freq(head)
 
-    infl = infl_constructor(head, pos, lemma)
     if pos in ['гл', 'с']:
+        infl = infl_constructor(head, pos, lemma)
         form = etree.fromstring(INFL_FORM.format(lemma_xml + occ, pos_xml, infl))
     else:
         form = etree.fromstring(FORM.format(lemma_xml + occ, pos_xml))
@@ -123,15 +127,12 @@ def infl_constructor(head, pos, lemma):
     gram = etree.tostring(gram, encoding='utf-8').decode()
     gram = BeautifulSoup(gram, 'html.parser').get_text()
     if pos == 'гл':
-        if '|' in lemma:
-            infl = [INFI.format(lemma.split('|')[-1])]
+        infl = [INFI.format(lemma.split('|')[-1])]
         morph = gram.split(', ')
-        infl += ['<per><sg1>' + morph[0] + '</sg1></per>', '<per><sg3>'\
-                 + morph[1] + '</sg3></per>']
+        infl += [VERB.format(morph[0], '1sg'), VERB.format(morph[1], '3sg')]
     elif pos == 'с':
-        if '|' in lemma:
-            infl = ['<orth  extent="part">' + lemma.split('|')[-1] + '</orth>']
-        infl += ['<case><gen>' + gram + '</gen></case>'] 
+        infl = [NOUN.format(' extent="part"', lemma.split('|')[-1], 'nom')]
+        infl += [NOUN.format('', gram, 'gen')]
     infl = ['<inflection>' + f + '</inflection>' for f in infl]
     return ''.join(infl)
 
@@ -184,7 +185,7 @@ def main():
     #     f.write('\n'.join(links))
     xml = get_dictionary()
     with open('old_russian.tei', 'w') as f:
-        text = etree.tostring(xml, encoding='utf-8').decode()
+        text = etree.tostring(xml, encoding='utf-8', pretty_print=True).decode()
         f.write(text)
 
 
