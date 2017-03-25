@@ -18,9 +18,12 @@ ROOT = 'http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/'
 with open('template.xml') as f:
     XML = f.read()
 ENTRY = '<superEntry><metalemma></metalemma><entry></entry></superEntry>'
-FORM = '<form>{0}<gramGrp>{1}</gramGrp>{2}</form>'
-INFL_FORM = '<form type="inflected">{0}<gramGrp>{1}</gramGrp></form>'
 NUM = ['1. ', '2. ', '3. ', '4. ', '5. ', '6. ', '7. ', '8. ', '9. ']
+FORM = '<form type="inflected">{0}<gramGrp>{1}</gramGrp></form>'
+INFL_FORM = '<form>{0}<gramGrp>{1}</gramGrp>{2}</form>'
+NOUN = '<inflection><orth{0}>{1}</orth><case>{2}<case><num>sg</num></inflection>'
+VERB = '<inflection><orth>{0}</orth><per>{1}</per></inflection>'
+INFI = '<inflection><orth extent="part">{0}</orth><lbl>inf<lbl></inflection>'
 
 
 def root_walker():
@@ -97,7 +100,7 @@ def get_gram_info(head, lemma, fname):
     if pos in ['гл', 'с']:
         form = etree.fromstring(INFL_FORM.format(lemma_xml + occ, pos_xml, infl))
     else:
-        form = etree.fromstring(INFL_FORM.format(lemma_xml + occ, pos_xml))
+        form = etree.fromstring(FORM.format(lemma_xml + occ, pos_xml))
     print('form: ' + etree.tostring(form, encoding='utf-8').decode())
     return form
 
@@ -115,24 +118,21 @@ def get_freq(head):
 
 
 def infl_constructor(head, pos, lemma):
-    infl = []
     gram = etree.Element('root')
     gram[:] = head[1:-1]
     gram = etree.tostring(gram, encoding='utf-8').decode()
     gram = BeautifulSoup(gram, 'html.parser').get_text()
     if pos == 'гл':
         if '|' in lemma:
-            infl = ['<orth  extent="part">' + lemma.split('|')[-1] + '</orth>']
-            # flex = '<inflection>' + flex + '</inflection>'
+            infl = [INFI.format(lemma.split('|')[-1])]
         morph = gram.split(', ')
         infl += ['<per><sg1>' + morph[0] + '</sg1></per>', '<per><sg3>'\
                  + morph[1] + '</sg3></per>']
-        infl = ['<inflection>' + f + '</inflection>' for f in infl]
     elif pos == 'с':
         if '|' in lemma:
-            infl = ['<case><orth  extent="part">' + lemma.split('|')[-1] + '</orth>']
+            infl = ['<orth  extent="part">' + lemma.split('|')[-1] + '</orth>']
         infl += ['<case><gen>' + gram + '</gen></case>'] 
-        infl = ['<inflection>' + f + '</inflection>' for f in infl]
+    infl = ['<inflection>' + f + '</inflection>' for f in infl]
     return ''.join(infl)
 
 
