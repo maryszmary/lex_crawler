@@ -10,24 +10,20 @@ from urllib import parse
 from urllib import request
 from lxml import etree
 from lxml import html
+from lxml import objectify
 from bs4 import BeautifulSoup
 import os
-
 
 ROOT = 'http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/'
 with open('template.xml') as f:
     XML = f.read()
-ENTRY = '''<superEntry>
-    <metalemma></metalemma>
-    <entry>
-    </entry>
-</superEntry>'''
+ENTRY = '<superEntry><metalemma></metalemma><entry></entry></superEntry>'
 NUM = ['1. ', '2. ', '3. ', '4. ', '5. ', '6. ', '7. ', '8. ', '9. ']
-FORM = '<form type="inflected">{0}<gramGrp>{1}</gramGrp></form>'
-INFL_FORM = '<form>{0}<gramGrp>{1}</gramGrp>{2}</form>'
-NOUN = '<inflection><orth{0}>{1}</orth><case>{2}</case><num>sg</num></inflection>'
-VERB = '<inflection><orth>{0}</orth><per>{1}</per></inflection>'
-INFI = '<inflection><orth extent="part">{0}</orth><lbl>inf</lbl></inflection>'
+FORM = '<form>{0}<gramGrp>{1}</gramGrp></form>'
+INFL_FORM = '<form type="inflected">{0}<gramGrp>{1}</gramGrp>{2}</form>'
+NOUN = '    <inflection>\n        <orth extent="part">{0}</orth>\n        <case>{1}</case>\n        <num>sg</num>\n    </inflection>'
+VERB = '    <inflection>\n        <orth extent="part">{0}</orth>\n        <per>{1}</per>\n    </inflection>'
+INFI = '    <inflection>\n        <orth extent="part">\n{0}</orth>\n        <lbl>inf</lbl>\n    </inflection>'
 
 
 def root_walker():
@@ -131,9 +127,8 @@ def infl_constructor(head, pos, lemma):
         morph = gram.split(', ')
         infl += [VERB.format(morph[0], '1sg'), VERB.format(morph[1], '3sg')]
     elif pos == 'с':
-        infl = [NOUN.format(' extent="part"', lemma.split('|')[-1], 'nom')]
+        infl = [NOUN.format(lemma.split('|')[-1], 'nom')]
         infl += [NOUN.format('', gram, 'gen')]
-    infl = ['<inflection>' + f + '</inflection>' for f in infl]
     return ''.join(infl)
 
 
@@ -145,11 +140,11 @@ def get_meaning(content):
                   if senses[i].text in NUM]
         result = []
         for i in range(len(senses)):
-            sense = etree.fromstring('<sense n="{0}"></sense>'.format(str(i)))
+            sense = etree.fromstring('\n    <sense n="{0}"></sense>\n    '.format(str(i + 1)))
             lbl = senses[i][0].text
             lbl = etree.fromstring('<lbl>' + lbl + '</lbl>')
             defin = senses[i][0][0].text
-            defin = etree.fromstring('<def>' + defin + '</def>')
+            defin = etree.fromstring('<def>' + defin + '</def>\n    ')
             sense.append(lbl)
             sense.append(defin)
             sense = append_cits(sense, senses[i][1])
@@ -158,9 +153,9 @@ def get_meaning(content):
 
     # let's assume that these words are not polysemic
     else:
-        sense = etree.fromstring('<sense n="1"></sense>')
+        sense = etree.fromstring('\n    <sense n="1"></sense>\n    ')
         defin = content[0].xpath('em')[-1].text
-        defin = etree.fromstring('<def>' + defin + '</def>')
+        defin = etree.fromstring('<def>' + defin + '</def>\n    ')
         sense.append(defin)
         sense = append_cits(sense, content)
         return [sense], False
@@ -185,6 +180,8 @@ def main():
     #     f.write('\n'.join(links))
     xml = get_dictionary()
     with open('old_russian.tei', 'w') as f:
+        text = etree.tostring(xml, encoding='utf-8', pretty_print=True).decode()
+        xml = objectify.fromstring(text)
         text = etree.tostring(xml, encoding='utf-8', pretty_print=True).decode()
         f.write(text)
 
