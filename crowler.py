@@ -25,9 +25,12 @@ NUM = ['1. ', '2. ', '3. ', '4. ', '5. ', '6. ', '7. ', '8. ', '9. ']
 FORM = '<form>{0}<gramGrp>{1}</gramGrp></form>'
 INFL_FORM = '<form type="inflected">{0}<gramGrp>{1}</gramGrp>{2}</form>'
 NOUN_LEM = '<inflection><orth extent="part">{0}</orth><lbl>nom.sg</lbl></inflection>'
-NOUN = '<inflection><orth extent="part">{0}</orth><case>gen</case><num>sg</num></inflection>'
-VERB = '<inflection><orth extent="part">{0}</orth><per>{1}</per></inflection>'
+# NOUN = '<inflection><orth extent="part">{0}</orth><case>gen</case><num>sg</num></inflection>'
+NOUN = '<inflection><orth extent="part">{0}</orth><lbl>gen.sg</lbl></inflection>'
+# VERB = '<inflection><orth extent="part">{0}</orth><per>{1}</per></inflection>'
+VERB = '<inflection><orth extent="part">{0}</orth><lbl>{1}</lbl></inflection>'
 INFI = '<inflection><orth extent="part">{0}</orth><lbl>inf</lbl></inflection>'
+DIRNAME = 'articles'
 
 
 def root_walker():
@@ -45,19 +48,22 @@ def root_walker():
 def get_dictionary():
     '''the main func for extracting the dictionaary data'''
     di = etree.fromstring(XML)
-    articles = os.listdir('mock_articles')
+    articles = os.listdir(DIRNAME)
 
     for i in range(len(articles)):
-        entry = get_page_data(articles[i])
-        di[-1][0].append(entry)
-    di[0][1].text = str(len(di))
+        try:
+            entry = get_page_data(articles[i])
+            di[-1][0].append(entry)
+        except Exception as e:
+            os.system('echo "{0} : {1}" >> all_problematic_articles'.format(articles[i], str(e)))
+    di[0][1].text = str(len(di[-1][0]))
     return di
 
 
 def get_page_data(fname):
     '''responsible for extration of all the information from a page'''
     # print(fname)
-    with open('mock_articles/' + fname) as f:
+    with open(DIRNAME + '/' + fname) as f:
         page = f.read()
     content = html.fromstring(page).xpath('.//div[@class="page"]')[0]
     lemma = content[0][0][0].text.replace(chr(747), '')
@@ -72,17 +78,13 @@ def get_page_data(fname):
     # except etree.XMLSyntaxError:
     #     print('etree.XMLSyntaxError: ' + fname)
     
-
-    # DEBUG
-    gram = get_gram_info(content[0][0], lemma, fname)
-    # except Exception as e:
-    #     print(str(e) + ': ' + fname)
-    #     raise e
+    gram, xrs = get_gram_info(content[0][0], lemma, fname)
 
     # building the entry
     entry = etree.fromstring(ENTRY)
     entry[1].append(gram)
     entry[1][1:] = meaning
+    entry[1][len(entry):] = xrs
     return entry
 
 
@@ -92,13 +94,16 @@ def get_gram_info(head, lemma, fname):
     except IndexError:
         print('IndexError: ' + fname)
         # gram = etree.fromstring('<form><orth type="lemma" extent="full" >{0}</orth></form>'.format(lemma))
-    xr = ''
-    if pos.split(' ')[-1] == 'к':
+    xrs = []
+    if pos.split(' ')[-1] in ['к', 'что']:
         pos = ' '.join(pos.split(' ')[:-1])
-        xr = head.xpath('strong')[-1].text.strip('. ')
-        xr = '<xr>' + xr + '</xr>'
-        # print('XR DETECTED: ' + xr)
-    pos_xml = '<pos>' + pos + '</pos>' + xr
+        xr = head.xpath('strong')[-1].text.strip('.')
+        if xr != '':
+            xr = '<xr><ref>' + xr + '</ref></xr>'
+            xrs.append(etree.fromstring(xr))
+    if '.' in pos:
+        pos = pos.rsplit('.', 1)[0]
+    pos_xml = '<pos>' + pos + '</pos>'
     lemma_xml = '<orth type="lemma" extent="full" >' + lemma + '</orth>'
     occ = get_freq(head)
 
@@ -108,7 +113,7 @@ def get_gram_info(head, lemma, fname):
     else:
         form = etree.fromstring(FORM.format(lemma_xml + occ, pos_xml))
     # print('form: ' + etree.tostring(form, encoding='utf-8').decode())
-    return form
+    return form, xrs
 
 
 def get_freq(head):
@@ -119,7 +124,7 @@ def get_freq(head):
     else:
         # this is made, because in some articles the location of freq is not typical
         occ = '<usg type="plev">' + head[1][0].text + '</usg>'
-        print('untypical location of OCC: ' + occ)
+        # print('untypical location of OCC: ' + occ)
     return occ
 
 
@@ -151,6 +156,8 @@ def get_meaning(content, fname):
             lbl = senses[i][0].text
             lbl = etree.fromstring('<lbl>' + lbl + '</lbl>')
             defin = senses[i][0][0].text
+            if '.' in defin:
+                defin = defin.rsplit('.', 1)[-1].strip(' ')
             defin = etree.fromstring('<def>' + defin + '</def>')
             sense.append(lbl)
             sense.append(defin)
@@ -162,6 +169,8 @@ def get_meaning(content, fname):
     else:
         sense = etree.fromstring('<sense n="1"></sense>')
         defin = content[0].xpath('em')[-1].text
+        if '.' in defin:
+            defin = defin.rsplit('.', 1)[-1].strip(' ')
         defin = etree.fromstring('<def>' + defin + '</def>')
         sense.append(defin)
         sense = append_cits(sense, content, fname)
