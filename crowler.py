@@ -5,6 +5,8 @@ this is a crawler for http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv
 # проблемы:
 # значение то внизу, то в шапке
 # непонятно, как вытаскивать def из штук типа "причастие к бити"
+# AAAAAH. the dictionary is virtually impossible tp parse! Сделать что-то с комментариями в квадратных скобках. которые распознаются как источники.
+# у слов с одним значением бывает два параграфа с примером (otrblti)
 
 from urllib import parse
 from urllib import request
@@ -13,6 +15,7 @@ from lxml import html
 from lxml import objectify
 from bs4 import BeautifulSoup
 import os
+import re
 
 ROOT = 'http://onlineslovari.com/slovar_drevnerusskogo_yazyika_vv/'
 with open('template.xml') as f:
@@ -21,9 +24,9 @@ ENTRY = '<superEntry><metalemma></metalemma><entry></entry></superEntry>'
 NUM = ['1. ', '2. ', '3. ', '4. ', '5. ', '6. ', '7. ', '8. ', '9. ']
 FORM = '<form>{0}<gramGrp>{1}</gramGrp></form>'
 INFL_FORM = '<form type="inflected">{0}<gramGrp>{1}</gramGrp>{2}</form>'
-NOUN = '    <inflection>\n        <orth extent="part">{0}</orth>\n        <case>{1}</case>\n        <num>sg</num>\n    </inflection>'
-VERB = '    <inflection>\n        <orth extent="part">{0}</orth>\n        <per>{1}</per>\n    </inflection>'
-INFI = '    <inflection>\n        <orth extent="part">\n{0}</orth>\n        <lbl>inf</lbl>\n    </inflection>'
+NOUN = '<inflection><orth extent="part">{0}</orth><case>{1}</case><num>sg</num></inflection>'
+VERB = '<inflection><orth extent="part">{0}</orth><per>{1}</per></inflection>'
+INFI = '<inflection><orth extent="part">{0}</orth><lbl>inf</lbl></inflection>'
 
 
 def root_walker():
@@ -51,14 +54,15 @@ def get_dictionary():
 
 def get_page_data(fname):
     '''responsible for extration of all the information from a page'''
+    print(fname)
     with open('mock_articles/' + fname) as f:
         page = f.read()
     content = html.fromstring(page).xpath('.//div[@class="page"]')[0]
-    lemma = content[0][0][0].text
+    lemma = content[0][0][0].text.replace(chr(747), '')
 
     # there are some articles without examples o_O
     # try:
-    meaning, polysemic = get_meaning(content[0])
+    meaning, polysemic = get_meaning(content[0], fname)
     # except IndexError: # DEBUG
     #     print('no examples: ' + fname)
     #     polysemic = False
@@ -101,7 +105,7 @@ def get_gram_info(head, lemma, fname):
         form = etree.fromstring(INFL_FORM.format(lemma_xml + occ, pos_xml, infl))
     else:
         form = etree.fromstring(FORM.format(lemma_xml + occ, pos_xml))
-    print('form: ' + etree.tostring(form, encoding='utf-8').decode())
+    # print('form: ' + etree.tostring(form, encoding='utf-8').decode())
     return form
 
 
@@ -118,6 +122,7 @@ def get_freq(head):
 
 
 def infl_constructor(head, pos, lemma):
+    '''builds the part "inflection"'''
     gram = etree.Element('root')
     gram[:] = head[1:-1]
     gram = etree.tostring(gram, encoding='utf-8').decode()
@@ -132,7 +137,7 @@ def infl_constructor(head, pos, lemma):
     return ''.join(infl)
 
 
-def get_meaning(content):
+def get_meaning(content, fname):
     # supposedly, if it doesn't start with None, the word is polysemic
     if content[1].text is not None:
         senses = content.xpath('div')
@@ -140,38 +145,66 @@ def get_meaning(content):
                   if senses[i].text in NUM]
         result = []
         for i in range(len(senses)):
-            sense = etree.fromstring('\n    <sense n="{0}"></sense>\n    '.format(str(i + 1)))
+            sense = etree.fromstring('<sense n="{0}"></sense>'.format(str(i + 1)))
             lbl = senses[i][0].text
             lbl = etree.fromstring('<lbl>' + lbl + '</lbl>')
             defin = senses[i][0][0].text
-            defin = etree.fromstring('<def>' + defin + '</def>\n    ')
+            defin = etree.fromstring('<def>' + defin + '</def>')
             sense.append(lbl)
             sense.append(defin)
-            sense = append_cits(sense, senses[i][1])
+            sense = append_cits(sense, senses[i][1], fname)
             result.append(sense)
         return result, True
 
     # let's assume that these words are not polysemic
     else:
-        sense = etree.fromstring('\n    <sense n="1"></sense>\n    ')
+        sense = etree.fromstring('<sense n="1"></sense>')
         defin = content[0].xpath('em')[-1].text
-        defin = etree.fromstring('<def>' + defin + '</def>\n    ')
+        defin = etree.fromstring('<def>' + defin + '</def>')
         sense.append(defin)
-        sense = append_cits(sense, content)
+        sense = append_cits(sense, content, fname)
         return [sense], False
 
 
-def append_cits(sense, content):
+def append_cits(sense, content, fname):
     cits = content.xpath('.//span[@class="dic_example"]')[0]
     examples = cits.xpath('.//span[@style="color: steelblue;"]')
-    sources = cits.xpath('.//em/span')
-    # print('len of cits: ' + str(len(examples)))
-    # print('len of sources: ' + str(len(sources)))
-    for pair in zip(examples, sources):
-        cit = '<cit><text>{0}</text><src>{1}</src></cit>'.format(pair[0].text, pair[1].text)
+    examples = [example for example in examples if example.text is not None]
+    pairs = source_example_pairs(examples)
+    for pair in pairs:
+        cit = '<cit><text>{0}</text><src>{1}</src></cit>'.format(pair[0], pair[1])
         cit = etree.fromstring(cit)
         sense.append(cit)
     return sense
+
+
+def source_example_pairs(examples):
+    pairs = []
+    i = 0
+    while i < len(examples):
+        example = examples[i]
+        text = example.text
+        if example.text[-1] == '[':
+            ntag = example.getnext()
+            text += ntag[0].text + examples[i + 1].text
+            source = examples[i + 1].getnext()[0].text
+            i += 1
+        elif example.text in [' (', '. ('] and i != 0:
+            pairs[-1][1] += ' (' + example.getnext()[0].text + ')'
+            i += 1
+            continue
+        elif example.text in [', ', '–', '—', '/'] and i != 0:
+            pairs[-1][1] += example.text + example.getnext()[0].text
+            i += 1
+            continue
+        elif examples[i].getnext() is None: # the end of examples
+            break
+        else:
+            source = examples[i].getnext()[0].text
+        text = re.sub('^\\)?; ?', '', text)
+        pairs.append([text, source])
+        i += 1
+    return pairs
 
 
 def main():
@@ -180,7 +213,7 @@ def main():
     #     f.write('\n'.join(links))
     xml = get_dictionary()
     with open('old_russian.tei', 'w') as f:
-        text = etree.tostring(xml, encoding='utf-8', pretty_print=True).decode()
+        text = etree.tostring(xml, encoding='utf-8').decode()
         xml = objectify.fromstring(text)
         text = etree.tostring(xml, encoding='utf-8', pretty_print=True).decode()
         f.write(text)
@@ -188,7 +221,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-# get_page_data('otyvty.8661.html')
-# get_page_data('otymetati.8802.html')
-# get_page_data('biny.592.html')
-# get_page_data('bezbojno.128.html') 
