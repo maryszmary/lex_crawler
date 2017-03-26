@@ -13,11 +13,13 @@
     <head>
         <title>Словарь древнерусского языка (XI-XIV вв.)</title>
         <author>Р. И. Аванесов</author>
-	    <language>rus</language>
+	    <language type="content">
+	        <idno type="iso639-3">orv</idno>
+	    </language>
     </head>
 </front>
 <body>
-	<div>		
-	</div>
+    <div>
+    </div>
 </body>
 </xml>

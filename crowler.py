@@ -24,7 +24,8 @@ ENTRY = '<superEntry><metalemma></metalemma><entry></entry></superEntry>'
 NUM = ['1. ', '2. ', '3. ', '4. ', '5. ', '6. ', '7. ', '8. ', '9. ']
 FORM = '<form>{0}<gramGrp>{1}</gramGrp></form>'
 INFL_FORM = '<form type="inflected">{0}<gramGrp>{1}</gramGrp>{2}</form>'
-NOUN = '<inflection><orth extent="part">{0}</orth><case>{1}</case><num>sg</num></inflection>'
+NOUN_LEM = '<inflection><orth extent="part">{0}</orth><lbl>nom.sg</lbl></inflection>'
+NOUN = '<inflection><orth extent="part">{0}</orth><case>gen</case><num>sg</num></inflection>'
 VERB = '<inflection><orth extent="part">{0}</orth><per>{1}</per></inflection>'
 INFI = '<inflection><orth extent="part">{0}</orth><lbl>inf</lbl></inflection>'
 
@@ -49,12 +50,13 @@ def get_dictionary():
     for i in range(len(articles)):
         entry = get_page_data(articles[i])
         di[-1][0].append(entry)
+    di[0][1].text = str(len(di))
     return di
 
 
 def get_page_data(fname):
     '''responsible for extration of all the information from a page'''
-    print(fname)
+    # print(fname)
     with open('mock_articles/' + fname) as f:
         page = f.read()
     content = html.fromstring(page).xpath('.//div[@class="page"]')[0]
@@ -101,7 +103,7 @@ def get_gram_info(head, lemma, fname):
     occ = get_freq(head)
 
     if pos in ['гл', 'с']:
-        infl = infl_constructor(head, pos, lemma)
+        infl = infl_constructor(head, pos, lemma, fname)
         form = etree.fromstring(INFL_FORM.format(lemma_xml + occ, pos_xml, infl))
     else:
         form = etree.fromstring(FORM.format(lemma_xml + occ, pos_xml))
@@ -121,7 +123,7 @@ def get_freq(head):
     return occ
 
 
-def infl_constructor(head, pos, lemma):
+def infl_constructor(head, pos, lemma, fname):
     '''builds the part "inflection"'''
     gram = etree.Element('root')
     gram[:] = head[1:-1]
@@ -132,8 +134,8 @@ def infl_constructor(head, pos, lemma):
         morph = gram.split(', ')
         infl += [VERB.format(morph[0], '1sg'), VERB.format(morph[1], '3sg')]
     elif pos == 'с':
-        infl = [NOUN.format(lemma.split('|')[-1], 'nom')]
-        infl += [NOUN.format('', gram, 'gen')]
+        infl = [NOUN_LEM.format(lemma.split('|')[-1])]
+        infl += [NOUN.format(gram.strip())]
     return ''.join(infl)
 
 
@@ -193,7 +195,7 @@ def source_example_pairs(examples):
             pairs[-1][1] += ' (' + example.getnext()[0].text + ')'
             i += 1
             continue
-        elif example.text in [', ', '–', '—', '/'] and i != 0:
+        elif example.text in [', ', '–', '—', '/', ' ', '.–'] and i != 0:
             pairs[-1][1] += example.text + example.getnext()[0].text
             i += 1
             continue
