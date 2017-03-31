@@ -48,11 +48,11 @@ def root_walker():
 def get_dictionary():
     '''the main func for extracting the dictionaary data'''
     di = etree.fromstring(XML)
-    articles = os.listdir(DIRNAME)
+    articles = sorted(os.listdir(DIRNAME))
 
     for i in range(len(articles)):
         try:
-            entry = get_page_data(articles[i])
+            entry = get_page_data(articles[i], i)
             di[-1][0].append(entry)
         except Exception as e:
             os.system('echo "{0} : {1}" >> all_problematic_articles'.format(articles[i], str(e)))
@@ -60,7 +60,7 @@ def get_dictionary():
     return di
 
 
-def get_page_data(fname):
+def get_page_data(fname, i):
     '''responsible for extration of all the information from a page'''
     # print(fname)
     with open(DIRNAME + '/' + fname) as f:
@@ -82,10 +82,19 @@ def get_page_data(fname):
 
     # building the entry
     entry = etree.fromstring(ENTRY)
+    entry[1].append(etree.fromstring('<index>{0}</index>'.format(i + 1)))
     entry[1].append(gram)
-    entry[1][1:] = meaning
+    entry[1][2:] = meaning
     entry[1][len(entry):] = xrs
     return entry
+
+
+def transliterator(lemma):
+    replacements = {'ѣ': 'е', 'ѥ': 'е', 'ѹ' : 'у', 'ѧ': 'я'}
+    lemma = lemma.lower()
+    for rep in replacements:
+        lemma = lemma.replace(rep, replacements[rep])
+    return lemma
 
 
 def get_gram_info(head, lemma, fname):
@@ -204,7 +213,7 @@ def source_example_pairs(examples):
             pairs[-1][1] += ' (' + example.getnext()[0].text + ')'
             i += 1
             continue
-        elif example.text in [', ', '–', '—', '/', ' ', '.–'] and i != 0:
+        elif example.text in [', ', '–', '—', '/', ' ', '.–', '.;  '] and i != 0:
             pairs[-1][1] += example.text + example.getnext()[0].text
             i += 1
             continue
